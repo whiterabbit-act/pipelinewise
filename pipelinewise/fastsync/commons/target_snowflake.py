@@ -8,6 +8,9 @@ from typing import List, Dict, Optional
 from snowflake.connector.encryption_util import SnowflakeEncryptionUtil
 from snowflake.connector.storage_client import SnowflakeFileEncryptionMaterial
 
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+
 from . import utils
 from .transform_utils import TransformationHelper, SQLFlavor
 
@@ -78,10 +81,33 @@ class FastSyncTargetSnowflake:
             }
         )
 
+    def get_private_key(self):
+        if self.connection_config.get('private_key_path'):
+            try:
+                encoded_passphrase = self.connection_config['private_key_passphrase'].encode()
+            except KeyError:
+                encoded_passphrase = None
+
+            with open(self.connection_config['private_key_path'], 'rb') as key:
+                p_key= serialization.load_pem_private_key(
+                        key.read(),
+                        password=encoded_passphrase,
+                        backend=default_backend()
+                    )
+
+            pkb = p_key.private_bytes(
+                    encoding=serialization.Encoding.DER,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption())
+            return pkb
+
+        return None
+
     def open_connection(self, query_tag_props=None):
         return snowflake.connector.connect(
             user=self.connection_config['user'],
-            password=self.connection_config['password'],
+            password=self.connection_config.get('password', None),
+            private_key=self.get_private_key(),
             account=self.connection_config['account'],
             database=self.connection_config['dbname'],
             warehouse=self.connection_config['warehouse'],
