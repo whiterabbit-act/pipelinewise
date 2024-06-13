@@ -1,1 +1,1 @@
-pipelinewise-target-snowflake==2.3.0
+pipelinewise-target-snowflake @ git+https://github.com/whiterabbit-act/pipelinewise-target-snowflake@master
